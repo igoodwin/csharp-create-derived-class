@@ -102,9 +102,28 @@ interface ClassInfo {
 }
 
 interface ConstructorInfo {
-  accessibility?: string; // public / protected / internal / private
-  parameters: string; // оригинальная строка параметров из объявления
-  argumentList: string; // аргументы для base(...)
+  accessibility?: string;
+  parameters: string;
+  argumentList: string;
+}
+
+interface AbstractMethodInfo {
+  accessibility: string; // public / protected / internal / private
+  returnType: string; // Task, Task<T>, int, MyType и т.д.
+  name: string; // ProcessAsync
+  fullTypeParameterText: string; // "<TArg>" или ""
+  typeParameters: string[]; // ["TArg"]
+  parameters: string; // "T arg"
+  constraints: string; // "where TArg : class" и т.п. или ""
+}
+
+interface AbstractPropertyInfo {
+  accessibility: string; // public / protected / ...
+  type: string; // T, Task<T>, MyType и т.п.
+  name: string; // Data
+  hasGetter: boolean;
+  hasSetter: boolean;
+  hasInit: boolean;
 }
 
 class CreateDerivedClassProvider implements vscode.CodeActionProvider {
@@ -283,6 +302,134 @@ function findAllIdentifierPositions(
   return positions;
 }
 
+function extractClassBody(
+  doc: vscode.TextDocument,
+  baseName: string
+): string | undefined {
+  const text = doc.getText();
+  const classRegex = new RegExp(`\\bclass\\s+${baseName}[^\\{]*\\{`, "m");
+  const match = classRegex.exec(text);
+  if (!match) {
+    return undefined;
+  }
+
+  const startIndex = match.index + match[0].length;
+  let depth = 1;
+  let i = startIndex;
+
+  while (i < text.length && depth > 0) {
+    const ch = text[i];
+    if (ch === "{") depth++;
+    else if (ch === "}") depth--;
+    i++;
+  }
+
+  if (depth !== 0) {
+    return undefined; // что-то пошло не так с фигурными скобками
+  }
+
+  // тело класса — между первой "{" и соответствующей "}"
+  return text.slice(startIndex, i - 1);
+}
+
+function detectAbstractMethodsInClass(
+  doc: vscode.TextDocument,
+  baseName: string
+): AbstractMethodInfo[] {
+  const body = extractClassBody(doc, baseName);
+  if (!body) {
+    return [];
+  }
+
+  const methods: AbstractMethodInfo[] = [];
+
+  // Примеры:
+  // public abstract Task ProcessAsync(T arg);
+  // protected abstract TResult Transform<TItem>(TItem item) where TItem : class;
+  // public abstract Task<int> FooAsync<T>(T arg);
+
+  const methodRegex =
+    /\b(public|protected|internal|private)\s+abstract\s+([A-Za-z_][\w<>,\.\s]*)\s+([A-Za-z_]\w*)\s*(<([^>]*)>)?\s*\(([^)]*)\)\s*(where[^;]+)?;/g;
+
+  let m: RegExpExecArray | null;
+  while ((m = methodRegex.exec(body)) !== null) {
+    const accessibility = m[1].trim();
+    const returnType = m[2].trim(); // Task, Task<int>, TResult и т.п.
+    const name = m[3].trim();
+    const fullTypeParameterText = m[4] ? m[4].trim() : ""; // "<T>" или ""
+    const typeParamsRaw = m[5] ? m[5].trim() : "";
+    const parameters = m[6] ? m[6].trim() : "";
+    const constraints = m[7] ? m[7].trim() : "";
+
+    const typeParameters: string[] = [];
+    if (typeParamsRaw) {
+      for (const part of typeParamsRaw.split(",")) {
+        const trimmed = part.trim();
+        if (!trimmed) continue;
+        const idMatch = /^([A-Za-z_]\w*)/.exec(trimmed);
+        if (idMatch) {
+          typeParameters.push(idMatch[1]);
+        }
+      }
+    }
+
+    methods.push({
+      accessibility,
+      returnType,
+      name,
+      fullTypeParameterText,
+      typeParameters,
+      parameters,
+      constraints,
+    });
+  }
+
+  return methods;
+}
+
+function detectAbstractPropertiesInClass(
+  doc: vscode.TextDocument,
+  baseName: string
+): AbstractPropertyInfo[] {
+  const body = extractClassBody(doc, baseName);
+  if (!body) {
+    return [];
+  }
+
+  const props: AbstractPropertyInfo[] = [];
+
+  // Примеры:
+  // public abstract T Data { get; set; }
+  // protected abstract Task<T> Value { get; }
+  // public abstract T Item { get; init; }
+
+  const propRegex =
+    /\b(public|protected|internal|private)\s+abstract\s+([A-Za-z_][\w<>,\.\s]*)\s+([A-Za-z_]\w*)\s*\{([^}]*)\}/g;
+
+  let m: RegExpExecArray | null;
+  while ((m = propRegex.exec(body)) !== null) {
+    const accessibility = m[1].trim();
+    const type = m[2].trim();
+    const name = m[3].trim();
+    const accessorsBlock = m[4];
+
+    const hasGetter = /get\s*;/.test(accessorsBlock);
+    const hasSetter = /set\s*;/.test(accessorsBlock);
+    const hasInit = /init\s*;/.test(accessorsBlock);
+
+    props.push({
+      accessibility,
+      type,
+      name,
+      hasGetter,
+      hasSetter,
+      hasInit,
+    });
+  }
+
+  return props;
+}
+
 /**
  * Create the new .cs file in the same folder as the document.
  * Detects namespace if possible.
@@ -309,6 +456,8 @@ async function createDerivedClassFile(
 
   // ищем конструкторы базового класса
   const constructors = detectConstructors(doc, baseName);
+  const abstractMethods = detectAbstractMethodsInClass(doc, baseName);
+  const abstractProperties = detectAbstractPropertiesInClass(doc, baseName);
 
   let content = "";
   if (namespace) {
@@ -317,7 +466,14 @@ async function createDerivedClassFile(
     content += `${indent}{${nl}`;
 
     // тело класса
-    content += generateClassBody(indent, newName, constructors, nl);
+    content += generateClassBody(
+      indent,
+      newName,
+      constructors,
+      abstractMethods,
+      abstractProperties,
+      nl
+    );
 
     content += `${indent}}${nl}`;
     content += `}${nl}`;
@@ -325,7 +481,14 @@ async function createDerivedClassFile(
     content += `public class ${newName} : ${baseName}${baseGenericSuffix}${nl}`;
     content += `{${nl}`;
 
-    content += generateClassBody(indent, newName, constructors, nl);
+    content += generateClassBody(
+      indent,
+      newName,
+      constructors,
+      abstractMethods,
+      abstractProperties,
+      nl
+    );
 
     content += `}${nl}`;
   }
@@ -410,15 +573,18 @@ function generateClassBody(
   indent: string,
   newName: string,
   constructors: ConstructorInfo[],
+  abstractMethods: AbstractMethodInfo[],
+  abstractProperties: AbstractPropertyInfo[],
   nl: string
 ): string {
   let body = "";
 
-  // TODO как точка входа
+  // TODO
   body += `${indent}${indent}// TODO: implement${nl}`;
 
+  // Конструкторы
   if (constructors.length > 0) {
-    body += nl; // пустая строка перед конструкторами
+    body += nl;
 
     for (const ctor of constructors) {
       const accessibility = ctor.accessibility || "public";
@@ -428,6 +594,47 @@ function generateClassBody(
       body += `${indent}${indent}${accessibility} ${newName}(${parameters}) : base(${args})${nl}`;
       body += `${indent}${indent}{${nl}`;
       body += `${indent}${indent}}${nl}${nl}`;
+    }
+  }
+
+  // Абстрактные методы
+  if (abstractMethods.length > 0) {
+    if (constructors.length === 0) {
+      body += nl;
+    }
+
+    for (const method of abstractMethods) {
+      body += `${indent}${indent}${method.accessibility} override ${method.returnType} ${method.name}${method.fullTypeParameterText}(${method.parameters})`;
+      if (method.constraints) {
+        body += ` ${method.constraints}`;
+      }
+      body += nl;
+      body += `${indent}${indent}{${nl}`;
+      body += `${indent}${indent}${indent}throw new System.NotImplementedException();${nl}`;
+      body += `${indent}${indent}}${nl}${nl}`;
+    }
+  }
+
+  // Абстрактные свойства
+  if (abstractProperties.length > 0) {
+    if (constructors.length === 0 && abstractMethods.length === 0) {
+      body += nl;
+    }
+
+    for (const prop of abstractProperties) {
+      body += `${indent}${indent}${prop.accessibility} override ${prop.type} ${prop.name} {`;
+
+      if (prop.hasGetter) {
+        body += ` get;`;
+      }
+      if (prop.hasSetter) {
+        body += ` set;`;
+      }
+      if (prop.hasInit) {
+        body += ` init;`;
+      }
+
+      body += ` }${nl}`;
     }
   }
 
