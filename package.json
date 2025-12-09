@@ -1,0 +1,51 @@
+{
+  "name": "csharp-create-derived-class",
+  "displayName": "C# Create Derived Class",
+  "description": "Adds a Code Action to create a derived class for a C# class declaration",
+  "version": "0.0.1",
+  "publisher": "ilshatmukminov",
+  "repository": {"url": "https://github.com/igoodwin/csharp-create-derived-class"},
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.70.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onLanguage:csharp",
+    "onCommand:extension.createDerivedClass"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "extension.createDerivedClass",
+        "title": "Create derived class"
+      }
+    ],
+    "languages": [
+      {
+        "id": "csharp",
+        "extensions": [
+          ".cs"
+        ]
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile"
+  },
+  "devDependencies": {
+    "@types/node": "^24.10.2",
+    "@types/vscode": "^1.70.0",
+    "tslint": "^6.1.3",
+    "typescript": "^4.8.0"
+  },
+  "dependencies": {
+    "text-encoder": "^0.0.4"
+  }
+}
