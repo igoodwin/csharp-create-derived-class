@@ -101,6 +101,12 @@ interface ClassInfo {
   typeParameters: string[];
 }
 
+interface ConstructorInfo {
+  accessibility?: string; // public / protected / internal / private
+  parameters: string; // оригинальная строка параметров из объявления
+  argumentList: string; // аргументы для base(...)
+}
+
 class CreateDerivedClassProvider implements vscode.CodeActionProvider {
   public static readonly providedCodeActionKinds = [
     vscode.CodeActionKind.QuickFix,
@@ -129,6 +135,42 @@ class CreateDerivedClassProvider implements vscode.CodeActionProvider {
     action.isPreferred = true;
     return [action];
   }
+}
+
+function buildArgumentList(parameterList: string): string {
+  if (!parameterList || !parameterList.trim()) {
+    return "";
+  }
+
+  const parts = parameterList.split(",");
+  const args: string[] = [];
+
+  for (const part of parts) {
+    const beforeEquals = part.split("=")[0].trim(); // отбрасываем значения по умолчанию
+    if (!beforeEquals) {
+      continue;
+    }
+
+    // разбиваем по пробелам: могут быть ref/out/in/this, тип, имя
+    const tokens = beforeEquals.split(/\s+/);
+    if (tokens.length === 0) {
+      continue;
+    }
+
+    const name = tokens[tokens.length - 1];
+    const modifiers = tokens.filter((t) =>
+      ["ref", "out", "in", "this"].includes(t)
+    );
+
+    if (!name) {
+      continue;
+    }
+
+    const arg = (modifiers.length ? modifiers.join(" ") + " " : "") + name;
+    args.push(arg);
+  }
+
+  return args.join(", ");
 }
 
 /**
@@ -184,6 +226,45 @@ function detectClassInfoAtPosition(
   return undefined;
 }
 
+function detectConstructors(
+  doc: vscode.TextDocument,
+  baseName: string
+): ConstructorInfo[] {
+  const text = doc.getText();
+  const ctors: ConstructorInfo[] = [];
+
+  // ищем что-то вроде:
+  // public BaseName(...)
+  // protected BaseName(...)
+  // internal BaseName(...)
+  // BaseName(...)
+  const ctorRegex = new RegExp(
+    `\\b(public|protected|internal|private)?\\s*(?:unsafe\\s+)?${baseName}\\s*\\(([^)]*)\\)`,
+    "g"
+  );
+
+  let match: RegExpExecArray | null;
+  while ((match = ctorRegex.exec(text)) !== null) {
+    const accessibility = match[1] ? match[1].trim() : undefined;
+    const parameters = match[2] ? match[2].trim() : "";
+
+    // берём только конструкторы "с аргументами"
+    if (!parameters) {
+      continue;
+    }
+
+    const argumentList = buildArgumentList(parameters);
+
+    ctors.push({
+      accessibility,
+      parameters,
+      argumentList,
+    });
+  }
+
+  return ctors;
+}
+
 function findAllIdentifierPositions(
   doc: vscode.TextDocument,
   identifier: string
@@ -223,18 +304,30 @@ async function createDerivedClassFile(
   const nl = getEOL(doc);
   const indent = "    ";
 
-  const genericParamsText =
+  const baseGenericSuffix =
     typeParameters.length > 0 ? `<${typeParameters.join(", ")}>` : "";
+
+  // ищем конструкторы базового класса
+  const constructors = detectConstructors(doc, baseName);
 
   let content = "";
   if (namespace) {
     content += `namespace ${namespace}${nl}{${nl}`;
-    content += `${indent}public class ${newName} : ${baseName}${genericParamsText}${nl}`;
-    content += `${indent}{${nl}${indent}${indent}// TODO: implement${nl}${indent}}${nl}`;
+    content += `${indent}public class ${newName} : ${baseName}${baseGenericSuffix}${nl}`;
+    content += `${indent}{${nl}`;
+
+    // тело класса
+    content += generateClassBody(indent, newName, constructors, nl);
+
+    content += `${indent}}${nl}`;
     content += `}${nl}`;
   } else {
-    content += `public class ${newName} : ${baseName}${genericParamsText}${nl}`;
-    content += `{${nl}${indent}// TODO: implement${nl}}${nl}`;
+    content += `public class ${newName} : ${baseName}${baseGenericSuffix}${nl}`;
+    content += `{${nl}`;
+
+    content += generateClassBody(indent, newName, constructors, nl);
+
+    content += `}${nl}`;
   }
 
   // write the file if not exists; if exists, ask to overwrite
@@ -311,4 +404,32 @@ function detectNamespace(doc: vscode.TextDocument): string | undefined {
 
 function getEOL(doc: vscode.TextDocument): string {
   return doc.eol === vscode.EndOfLine.CRLF ? "\r\n" : "\n";
+}
+
+function generateClassBody(
+  indent: string,
+  newName: string,
+  constructors: ConstructorInfo[],
+  nl: string
+): string {
+  let body = "";
+
+  // TODO как точка входа
+  body += `${indent}${indent}// TODO: implement${nl}`;
+
+  if (constructors.length > 0) {
+    body += nl; // пустая строка перед конструкторами
+
+    for (const ctor of constructors) {
+      const accessibility = ctor.accessibility || "public";
+      const parameters = ctor.parameters;
+      const args = ctor.argumentList;
+
+      body += `${indent}${indent}${accessibility} ${newName}(${parameters}) : base(${args})${nl}`;
+      body += `${indent}${indent}{${nl}`;
+      body += `${indent}${indent}}${nl}${nl}`;
+    }
+  }
+
+  return body;
 }
