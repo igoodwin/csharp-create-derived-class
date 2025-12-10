@@ -2,7 +2,7 @@
   "name": "csharp-create-derived-class",
   "displayName": "C# Create Derived Class",
   "description": "Adds a Code Action to create a derived class for a C# class declaration",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "publisher": "ilshatmukminov",
   "repository": {"url": "https://github.com/igoodwin/csharp-create-derived-class"},
   "license": "MIT",

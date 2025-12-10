@@ -1,4 +1,3 @@
-````md
 # C# Create Derived Class
 
 Adds a Code Action for C# files that generates a derived class based on the selected base class.  
@@ -99,21 +98,11 @@ public abstract int Count { get; init; }
 Generated:
 
 ```csharp
-public override T Data
-{
-    get => throw new System.NotImplementedException();
-    set => throw new System.NotImplementedException();
-}
+public override T Data { get; set; }
 
-public override string Name
-{
-    get => throw new System.NotImplementedException();
-}
+public override string Name { get; }
 
-public override int Count
-{
-    init => throw new System.NotImplementedException();
-}
+public override int Count { init; }
 ```
 
 ---
@@ -176,6 +165,8 @@ MIT
 ---
 
 # 📌 Changelog
+
+## 0.0.5 — Minor fixes
 
 ## 0.0.4 — Added abstract property generation
 
