@@ -107,6 +107,20 @@ public override int Count { init; }
 
 ---
 
+### 🔹 Interface extraction suggestions
+
+Place the caret on a public property or method (including generic members).  
+The extension will offer quick fixes to:
+
+- add the member to any existing interface in the file
+- or create a brand-new interface (name prefilled from the containing class)
+- keep interface declarations generic if the member uses class type parameters
+- automatically change private method implementations to `public` so they match the interface contract
+
+Members already declared in an interface, and interface members themselves, are ignored.
+
+---
+
 ## ▶ How to Use
 
 1. Open any `.cs` file
@@ -165,6 +179,12 @@ MIT
 ---
 
 # 📌 Changelog
+
+## 0.0.6 — Interface suggestions
+
+* Added Roslyn/OmniSharp-powered detection of properties and methods for quick interface extraction
+* Can append to existing interfaces or generate new ones with inferred generic parameters
+* Ensures private methods become `public` when an interface is introduced
 
 ## 0.0.5 — Minor fixes
 
