@@ -831,7 +831,8 @@ function detectNamespaceBlock(
 function extractClassInfoFromSymbol(
   symbol: vscode.DocumentSymbol
 ): ClassInfo | undefined {
-  const match = /^([A-Za-z_]\w*)(?:<([^>]+)>)?/.exec(symbol.detail);
+  const rawName = symbol.detail.split(".").reverse()[0];
+  const match = /^([A-Za-z_]\w*)(?:<([^>]+)>)?/.exec(rawName);
   if (!match) {
     return undefined;
   }

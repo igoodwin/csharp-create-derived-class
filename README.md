@@ -190,6 +190,8 @@ MIT
 ---
 
 # 📌 Changelog
+## 0.0.7 - Minor fixes
+* Added namespace supporting
 
 ## 0.0.6 — Interface suggestions & base moves
 
