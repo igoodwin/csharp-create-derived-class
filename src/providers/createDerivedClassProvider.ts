@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import {
   detectClassInfoAtPosition,
+  detectOverrideableMemberTarget,
 } from "../features/createDerivedClass";
 import {
   detectInterfacesInDocument,
@@ -32,8 +33,19 @@ export class CreateDerivedClassProvider implements vscode.CodeActionProvider {
     const symbols = await getDocumentSymbols(document);
 
     const classInfo = await detectClassInfoAtPosition(document, pos, symbols);
-    if (classInfo) {
-      const title = `Create derived class '${classInfo.name}Derived'`;
+    const isOnClassDeclaration = isPositionOnClassDeclaration(document, pos);
+    let derivedTarget = classInfo && isOnClassDeclaration ? classInfo : undefined;
+
+    if (!derivedTarget && !isOnClassDeclaration) {
+      derivedTarget = await detectOverrideableMemberTarget(
+        document,
+        pos,
+        symbols
+      );
+    }
+
+    if (derivedTarget) {
+      const title = `Create derived class '${derivedTarget.name}Derived'`;
       const action = new vscode.CodeAction(
         title,
         vscode.CodeActionKind.QuickFix
@@ -42,7 +54,10 @@ export class CreateDerivedClassProvider implements vscode.CodeActionProvider {
         command: "extension.createDerivedClass",
         title,
         arguments: [
-          { baseName: classInfo.name, typeParameters: classInfo.typeParameters },
+          {
+            baseName: derivedTarget.name,
+            typeParameters: derivedTarget.typeParameters,
+          },
         ],
       };
       action.isPreferred = true;
@@ -111,4 +126,28 @@ export class CreateDerivedClassProvider implements vscode.CodeActionProvider {
 
     return actions;
   }
+}
+
+function isPositionOnClassDeclaration(
+  document: vscode.TextDocument,
+  pos: vscode.Position
+): boolean {
+  const lineText = document.lineAt(pos.line).text;
+  const classRegex = /\bclass\s+([A-Za-z_]\w*)/g;
+  let match: RegExpExecArray | null;
+  while ((match = classRegex.exec(lineText)) !== null) {
+    const start = match.index;
+    let end = start + match[0].length;
+
+    const afterName = lineText.slice(end);
+    const genericMatch = afterName.match(/^\s*<[^>]*>/);
+    if (genericMatch) {
+      end += genericMatch[0].length;
+    }
+
+    if (pos.character >= start && pos.character <= end) {
+      return true;
+    }
+  }
+  return false;
 }

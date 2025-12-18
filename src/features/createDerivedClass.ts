@@ -52,6 +52,38 @@ export async function detectClassInfoAtPosition(
   return detectClassInfoAtPositionLegacy(doc, pos);
 }
 
+export async function detectOverrideableMemberTarget(
+  doc: vscode.TextDocument,
+  pos: vscode.Position,
+  symbols?: vscode.DocumentSymbol[]
+): Promise<ClassInfo | undefined> {
+  const tree = symbols ?? (await getDocumentSymbols(doc));
+  const memberSymbol = findEnclosingSymbolByKind(tree, pos, [
+    vscode.SymbolKind.Method,
+    vscode.SymbolKind.Property,
+  ]);
+  if (!memberSymbol) {
+    return undefined;
+  }
+
+  if (!isSymbolOverrideable(doc, memberSymbol)) {
+    return undefined;
+  }
+
+  const classSymbol = findEnclosingSymbolByKind(tree, memberSymbol.range.start, [
+    vscode.SymbolKind.Class,
+  ]);
+  if (!classSymbol) {
+    return undefined;
+  }
+
+  const info = extractClassInfoFromSymbol(classSymbol);
+  if (info) {
+    return info;
+  }
+  return detectClassInfoAtPositionLegacy(doc, classSymbol.selectionRange.start);
+}
+
 export async function createDerivedClass(
   doc: vscode.TextDocument,
   pos: vscode.Position,
@@ -556,4 +588,70 @@ function findClassSymbolByName(
   }
 
   return undefined;
+}
+
+function isSymbolOverrideable(
+  doc: vscode.TextDocument,
+  symbol: vscode.DocumentSymbol
+): boolean {
+  const signature = extractMemberSignature(doc, symbol);
+  if (!signature) {
+    return false;
+  }
+
+  const modifiers = extractMemberModifiers(signature);
+  if (modifiers.includes("static")) {
+    return false;
+  }
+
+  const hasAbstract = modifiers.includes("abstract");
+  const hasVirtual = modifiers.includes("virtual");
+  const hasOverride = modifiers.includes("override");
+  const hasSealed = modifiers.includes("sealed");
+
+  if (hasSealed && hasOverride && !hasAbstract) {
+    return false;
+  }
+
+  return hasAbstract || hasVirtual || (hasOverride && !hasSealed);
+}
+
+function extractMemberSignature(
+  doc: vscode.TextDocument,
+  symbol: vscode.DocumentSymbol
+): string | undefined {
+  const range = new vscode.Range(
+    new vscode.Position(symbol.range.start.line, 0),
+    symbol.range.end
+  );
+  let text = doc.getText(range);
+
+  const terminators = ["{", "=>", ";"];
+  let cutIndex = text.length;
+  for (const terminator of terminators) {
+    const idx = terminator === "=>"
+      ? text.indexOf("=>")
+      : text.indexOf(terminator);
+    if (idx >= 0 && idx < cutIndex) {
+      cutIndex = idx;
+    }
+  }
+
+  if (cutIndex === 0) {
+    return undefined;
+  }
+
+  return text.slice(0, cutIndex);
+}
+
+function extractMemberModifiers(signature: string): string[] {
+  const withoutAttributes = signature.replace(/\[[^\]]*\]/g, " ");
+  const modifierRegex =
+    /\b(public|protected|internal|private|static|virtual|override|abstract|sealed|async|unsafe|partial|extern|new)\b/g;
+  const modifiers: string[] = [];
+  let match: RegExpExecArray | null;
+  while ((match = modifierRegex.exec(withoutAttributes)) !== null) {
+    modifiers.push(match[1]);
+  }
+  return modifiers;
 }

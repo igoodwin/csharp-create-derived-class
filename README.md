@@ -8,7 +8,7 @@ The generated class includes constructors, abstract member overrides, generic ha
 ## ✨ Features
 
 ### 🔹 Create derived class
-When the cursor is on a class declaration, a Code Action appears:
+When the cursor is on an abstract/virtual member that can be overridden, a Code Action appears:
 > **Create derived class `MyBaseDerived`**
 
 The extension will:
@@ -152,7 +152,7 @@ public class MyBase
 > Create derived class 'MyBaseDerived'
 
 5. Enter name if necessary
-6. The extension inserts the derived class beneath the original base class in the current file
+6. The extension inserts the derived class beneath the original base class in the current file (also works if you trigger the action from an overrideable member)
 
 ---
 
