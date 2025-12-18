@@ -119,6 +119,17 @@ The extension will offer quick fixes to:
 
 Members already declared in an interface, and interface members themselves, are ignored.
 
+### 🔹 Move members to base class
+
+If a class inherits from another class declared in the same file, place the caret on any field, property, or method to get the quick fix:
+> **Move 'MemberName' to BaseClass**
+
+The action will:
+- move the selected member along with other class members it depends on
+- automatically change `private` accessibility to `protected` so the base class can use the member
+- remove the members from the derived class and insert them before the closing brace of the base class
+- show the standard VS Code preview so you can review the diff before applying
+
 ---
 
 ## ▶ How to Use
@@ -180,11 +191,12 @@ MIT
 
 # 📌 Changelog
 
-## 0.0.6 — Interface suggestions
+## 0.0.6 — Interface suggestions & base moves
 
 * Added Roslyn/OmniSharp-powered detection of properties and methods for quick interface extraction
 * Can append to existing interfaces or generate new ones with inferred generic parameters
 * Ensures private methods become `public` when an interface is introduced
+* New “Move members to base class” refactor moves selected members plus their dependencies, promoting `private` to `protected` when needed
 
 ## 0.0.5 — Minor fixes
 
