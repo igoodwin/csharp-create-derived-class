@@ -2,7 +2,7 @@
   "name": "csharp-create-derived-class",
   "displayName": "C# Create Derived Class",
   "description": "Adds a Code Action to create a derived class for a C# class declaration",
-  "version": "0.0.7",
+  "version": "0.0.8",
   "publisher": "ilshatmukminov",
   "repository": {"url": "https://github.com/igoodwin/csharp-create-derived-class"},
   "license": "MIT",
@@ -13,9 +13,7 @@
     "Other"
   ],
   "activationEvents": [
-    "onLanguage:csharp",
-    "onCommand:extension.createDerivedClass",
-    "onCommand:extension.addPropertyToInterface"
+    "onLanguage:csharp"
   ],
   "main": "./out/extension.js",
   "contributes": {

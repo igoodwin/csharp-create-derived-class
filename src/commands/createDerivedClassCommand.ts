@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 import {
-  createDerivedClassFile,
+  createDerivedClass,
   detectClassInfoAtPosition,
 } from "../features/createDerivedClass";
 
@@ -59,7 +59,7 @@ export function registerCreateDerivedClassCommand(
       }
 
       try {
-        await createDerivedClassFile(
+        await createDerivedClass(
           doc,
           position,
           baseName,
@@ -70,7 +70,7 @@ export function registerCreateDerivedClassCommand(
           `Created class ${newName} : ${baseName}`
         );
       } catch (err) {
-        vscode.window.showErrorMessage("Failed to create file: " + String(err));
+        vscode.window.showErrorMessage("Failed to create derived class: " + String(err));
       }
     }
   );

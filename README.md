@@ -15,8 +15,8 @@ The extension will:
 - detect the class name automatically
 - suggest `<BaseClassName>Derived` as the default derived name
 - detect namespace
-- create a `.cs` file in the same folder
-- open the file and position cursor at the main implementation point
+- insert the derived class right below the base class in the same file
+- keep the caret on the generated TODO or generic parameters for quick edits
 
 ### 🔹 Generic class support
 Works with:
@@ -152,7 +152,7 @@ public class MyBase
 > Create derived class 'MyBaseDerived'
 
 5. Enter name if necessary
-6. The extension will create and open a new file
+6. The extension inserts the derived class beneath the original base class in the current file
 
 ---
 

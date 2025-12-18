@@ -1,11 +1,10 @@
 import * as vscode from "vscode";
-import * as path from "path";
 import { ClassInfo } from "../types";
 import {
   findEnclosingSymbolByKind,
   getDocumentSymbols,
 } from "../utils/symbols";
-import { detectNamespace, getEOL } from "../utils/document";
+import { getEOL } from "../utils/document";
 
 interface ConstructorInfo {
   accessibility?: string;
@@ -53,21 +52,15 @@ export async function detectClassInfoAtPosition(
   return detectClassInfoAtPositionLegacy(doc, pos);
 }
 
-export async function createDerivedClassFile(
+export async function createDerivedClass(
   doc: vscode.TextDocument,
   pos: vscode.Position,
   baseName: string,
   newName: string,
   typeParameters: string[] = []
 ) {
-  const srcUri = doc.uri;
-  const folder = path.dirname(srcUri.fsPath);
-  const newFilePath = path.join(folder, `${newName}.cs`);
-  const newFileUri = vscode.Uri.file(newFilePath);
-
-  const namespace = detectNamespace(doc);
   const nl = getEOL(doc);
-  const indent = "    ";
+  const indentUnit = "    ";
 
   const baseGenericSuffix =
     typeParameters.length > 0 ? `<${typeParameters.join(", ")}>` : "";
@@ -76,85 +69,79 @@ export async function createDerivedClassFile(
   const abstractMethods = detectAbstractMethodsInClass(doc, baseName);
   const abstractProperties = detectAbstractPropertiesInClass(doc, baseName);
 
-  let content = "";
-  if (namespace) {
-    content += `namespace ${namespace}${nl}{${nl}`;
-    content += `${indent}public class ${newName} : ${baseName}${baseGenericSuffix}${nl}`;
-    content += `${indent}{${nl}`;
-    content += generateClassBody(
-      indent,
-      newName,
-      constructors,
-      abstractMethods,
-      abstractProperties,
-      nl
-    );
-    content += `${indent}}${nl}`;
-    content += `}${nl}`;
-  } else {
-    content += `public class ${newName} : ${baseName}${baseGenericSuffix}${nl}`;
-    content += `{${nl}`;
-    content += generateClassBody(
-      indent,
-      newName,
-      constructors,
-      abstractMethods,
-      abstractProperties,
-      nl
-    );
-    content += `}${nl}`;
+  const symbols = await getDocumentSymbols(doc);
+  const baseSymbol =
+    findEnclosingSymbolByKind(symbols, pos, [vscode.SymbolKind.Class]) ??
+    findClassSymbolByName(symbols, baseName);
+
+  if (!baseSymbol) {
+    throw new Error("Could not locate the base class in the current document.");
   }
 
-  try {
-    await vscode.workspace.fs.stat(newFileUri);
-    const overwrite = await vscode.window.showQuickPick(
-      ["Overwrite", "Cancel"],
-      { placeHolder: `${newName}.cs already exists — overwrite?` }
-    );
-    if (overwrite !== "Overwrite") {
-      throw new Error("User cancelled overwrite");
-    }
-  } catch (err) {
-    // file does not exist
+  const baseLine = doc.lineAt(baseSymbol.selectionRange.start.line);
+  const baseIndent = baseLine.text.slice(
+    0,
+    baseLine.firstNonWhitespaceCharacterIndex
+  );
+
+  const classText = buildDerivedClassText(
+    baseIndent,
+    indentUnit,
+    baseName,
+    newName,
+    baseGenericSuffix,
+    constructors,
+    abstractMethods,
+    abstractProperties,
+    nl
+  );
+
+  const insertPosition = baseSymbol.range.end;
+  const insertText = `${nl}${nl}${classText}`;
+  const insertStartOffset = doc.offsetAt(insertPosition);
+  const insertEndOffset = insertStartOffset + insertText.length;
+
+  const edit = new vscode.WorkspaceEdit();
+  edit.insert(doc.uri, insertPosition, insertText);
+  const applied = await vscode.workspace.applyEdit(edit);
+  if (!applied) {
+    throw new Error("Failed to insert derived class into document.");
   }
 
-  const encoder = new TextEncoder();
-  await vscode.workspace.fs.writeFile(newFileUri, encoder.encode(content));
-
-  const docNew = await vscode.workspace.openTextDocument(newFileUri);
-  const editorNew = await vscode.window.showTextDocument(docNew, {
-    preview: false,
-  });
+  const editor = await vscode.window.showTextDocument(doc);
+  const updatedDoc = editor.document;
 
   const selections: vscode.Selection[] = [];
+  const todoSelection = findTodoSelection(
+    updatedDoc,
+    insertStartOffset,
+    insertEndOffset
+  );
 
   if (typeParameters && typeParameters.length > 0) {
     for (const p of typeParameters) {
-      const positions = findAllIdentifierPositions(docNew, p);
+      const positions = findAllIdentifierPositions(updatedDoc, p);
       for (const pPos of positions) {
-        selections.push(new vscode.Selection(pPos, pPos));
+        const endOffset = updatedDoc.offsetAt(pPos);
+        const startOffset = endOffset - p.length;
+        if (
+          startOffset >= insertStartOffset &&
+          endOffset <= insertEndOffset
+        ) {
+          selections.push(new vscode.Selection(pPos, pPos));
+        }
       }
     }
   }
 
-  if (selections.length === 0) {
-    const lines = docNew.getText().split(/\r?\n/);
-    const todoLineIndex = lines.findIndex((l) =>
-      l.includes("// TODO: implement")
-    );
-    if (todoLineIndex >= 0) {
-      const posTodo = new vscode.Position(
-        todoLineIndex,
-        docNew.lineAt(todoLineIndex).text.length
-      );
-      selections.push(new vscode.Selection(posTodo, posTodo));
-    }
+  if (selections.length === 0 && todoSelection) {
+    selections.push(new vscode.Selection(todoSelection, todoSelection));
   }
 
   if (selections.length > 0) {
-    editorNew.selections = selections;
+    editor.selections = selections;
     const first = selections[0].start;
-    editorNew.revealRange(
+    editor.revealRange(
       new vscode.Range(first, first),
       vscode.TextEditorRevealType.InCenter
     );
@@ -429,16 +416,47 @@ function detectAbstractPropertiesInClass(
   return props;
 }
 
+function buildDerivedClassText(
+  baseIndent: string,
+  indentUnit: string,
+  baseName: string,
+  newName: string,
+  baseGenericSuffix: string,
+  constructors: ConstructorInfo[],
+  abstractMethods: AbstractMethodInfo[],
+  abstractProperties: AbstractPropertyInfo[],
+  nl: string
+): string {
+  let content = "";
+  content += `${baseIndent}public class ${newName} : ${baseName}${baseGenericSuffix}${nl}`;
+  content += `${baseIndent}{${nl}`;
+  content += generateClassBody(
+    indentUnit,
+    baseIndent,
+    newName,
+    constructors,
+    abstractMethods,
+    abstractProperties,
+    nl
+  );
+  content += `${baseIndent}}${nl}`;
+  return content;
+}
+
 function generateClassBody(
-  indent: string,
+  indentUnit: string,
+  baseIndent: string,
   newName: string,
   constructors: ConstructorInfo[],
   abstractMethods: AbstractMethodInfo[],
   abstractProperties: AbstractPropertyInfo[],
   nl: string
 ): string {
+  const classIndent = baseIndent + indentUnit;
+  const innerIndent = classIndent + indentUnit;
+
   let body = "";
-  body += `${indent}${indent}// TODO: implement${nl}`;
+  body += `${classIndent}// TODO: implement${nl}`;
 
   if (constructors.length > 0) {
     body += nl;
@@ -448,9 +466,9 @@ function generateClassBody(
       const parameters = ctor.parameters;
       const args = ctor.argumentList;
 
-      body += `${indent}${indent}${accessibility} ${newName}(${parameters}) : base(${args})${nl}`;
-      body += `${indent}${indent}{${nl}`;
-      body += `${indent}${indent}}${nl}${nl}`;
+      body += `${classIndent}${accessibility} ${newName}(${parameters}) : base(${args})${nl}`;
+      body += `${classIndent}{${nl}`;
+      body += `${classIndent}}${nl}${nl}`;
     }
   }
 
@@ -460,14 +478,14 @@ function generateClassBody(
     }
 
     for (const method of abstractMethods) {
-      body += `${indent}${indent}${method.accessibility} override ${method.returnType} ${method.name}${method.fullTypeParameterText}(${method.parameters})`;
+      body += `${classIndent}${method.accessibility} override ${method.returnType} ${method.name}${method.fullTypeParameterText}(${method.parameters})`;
       if (method.constraints) {
         body += ` ${method.constraints}`;
       }
       body += nl;
-      body += `${indent}${indent}{${nl}`;
-      body += `${indent}${indent}${indent}throw new System.NotImplementedException();${nl}`;
-      body += `${indent}${indent}}${nl}${nl}`;
+      body += `${classIndent}{${nl}`;
+      body += `${innerIndent}throw new System.NotImplementedException();${nl}`;
+      body += `${classIndent}}${nl}${nl}`;
     }
   }
 
@@ -477,7 +495,7 @@ function generateClassBody(
     }
 
     for (const prop of abstractProperties) {
-      body += `${indent}${indent}${prop.accessibility} override ${prop.type} ${prop.name} {`;
+      body += `${classIndent}${prop.accessibility} override ${prop.type} ${prop.name} {`;
 
       if (prop.hasGetter) {
         body += ` get;`;
@@ -494,4 +512,48 @@ function generateClassBody(
   }
 
   return body;
+}
+
+function findTodoSelection(
+  doc: vscode.TextDocument,
+  insertStartOffset: number,
+  insertEndOffset: number
+): vscode.Position | undefined {
+  const range = new vscode.Range(
+    doc.positionAt(insertStartOffset),
+    doc.positionAt(insertEndOffset)
+  );
+  const text = doc.getText(range);
+  const marker = "// TODO: implement";
+  const relativeIndex = text.indexOf(marker);
+  if (relativeIndex < 0) {
+    return undefined;
+  }
+
+  const absoluteOffset = insertStartOffset + relativeIndex;
+  const lineIndex = doc.positionAt(absoluteOffset).line;
+  const line = doc.lineAt(lineIndex);
+  return line.range.end;
+}
+
+function findClassSymbolByName(
+  symbols: readonly vscode.DocumentSymbol[] | undefined,
+  name: string
+): vscode.DocumentSymbol | undefined {
+  if (!symbols) {
+    return undefined;
+  }
+
+  for (const symbol of symbols) {
+    if (symbol.kind === vscode.SymbolKind.Class && symbol.name === name) {
+      return symbol;
+    }
+
+    const child = findClassSymbolByName(symbol.children, name);
+    if (child) {
+      return child;
+    }
+  }
+
+  return undefined;
 }
