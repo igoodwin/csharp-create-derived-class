@@ -1,7 +1,12 @@
 # C# Create Derived Class
 
-Adds a Code Action for C# files that generates a derived class based on the selected base class.  
-The generated class includes constructors, abstract member overrides, generic handling, and cursor positioning for faster editing.
+Adds Code Actions for C# files:
+- create a derived class from a base class
+- extract members into interfaces
+- move members to a base class
+- navigate and list class members (including partials)
+
+The derived class generator includes constructors, abstract member overrides, generic handling, and cursor positioning for faster editing.
 
 ---
 
@@ -141,6 +146,13 @@ Use **Ctrl+Alt+↑ / Ctrl+Alt+↓** to jump to the previous/next class member (m
 
 ---
 
+## ✅ Requirements
+
+- VS Code 1.70+
+- C# extension: `ms-dotnettools.csharp`
+
+---
+
 ## ▶ How to Use
 
 1. Open any `.cs` file
@@ -162,6 +174,18 @@ public class MyBase
 
 5. Enter name if necessary
 6. The extension inserts the derived class beneath the original base class in the current file (also works if you trigger the action from an overrideable member)
+
+---
+
+## ⌨ Commands and Keybindings
+
+| Command | ID | Default keybinding |
+| --- | --- | --- |
+| Create derived class | `extension.createDerivedClass` | Code Action |
+| Extract to interface | `extension.addPropertyToInterface` | Code Action |
+| Show class members | `extension.showClassMembers` | **Alt+Shift+\\** |
+| Previous class member | `extension.navigateToPreviousClassMember` | **Ctrl+Alt+↑** |
+| Next class member | `extension.navigateToNextClassMember` | **Ctrl+Alt+↓** |
 
 ---
 
@@ -199,8 +223,14 @@ MIT
 ---
 
 # 📌 Changelog
+## 0.0.11 — Current release
+* Command palette and keybindings for class member navigation
+* Class member listing includes partial declarations
+* Interface extraction quick fixes (existing or new interface)
+* Move members to base class with dependency handling
+
 ## 0.0.7 - Minor fixes
-* Added namespace supporting
+* Added namespace support
 
 ## 0.0.6 — Interface suggestions & base moves
 
@@ -215,7 +245,7 @@ MIT
 
 * Added support for generating overrides for abstract properties
 * Handles `get`, `set`, and `init` accessors
-* All NotImplemented blocks use expression bodies
+* Overrides use `NotImplementedException` stubs
 
 ## 0.0.3 — Added abstract method generation
 
@@ -236,8 +266,3 @@ MIT
 * Multi-cursor positioning on generic parameters
 * Suggestion for default derived class name
 * Cursor positioned at implementation location
-
----
-
-```
-```
