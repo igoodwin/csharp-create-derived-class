@@ -135,6 +135,10 @@ The action will:
 Press **Alt+|** (Alt+Shift+\\) while your cursor is inside a class to open a quick list of all of its members.  
 Members from any partial declarations in other files are included, and picking an entry navigates to it.
 
+### 🔹 Navigate between class members
+
+Use **Ctrl+Alt+↑ / Ctrl+Alt+↓** to jump to the previous/next class member (methods, properties, fields, constructors), including members from other partial files.
+
 ---
 
 ## ▶ How to Use

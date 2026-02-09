@@ -7,6 +7,7 @@ import {
 
 export interface ClassMemberQuickPickItem extends vscode.QuickPickItem {
   location: vscode.Location;
+  symbolKind: vscode.SymbolKind;
 }
 
 export interface ClassMembersResult {
@@ -148,6 +149,7 @@ function buildQuickPickItem(
     description,
     detail,
     location: new vscode.Location(doc.uri, symbol.selectionRange),
+    symbolKind: symbol.kind,
   };
 }
 

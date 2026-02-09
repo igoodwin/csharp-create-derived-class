@@ -1,5 +1,8 @@
 import * as vscode from "vscode";
-import { collectClassMembersAtPosition } from "../features/classMembers";
+import {
+  ClassMemberQuickPickItem,
+  collectClassMembersAtPosition,
+} from "../features/classMembers";
 
 export function registerShowClassMembersCommand(
   context: vscode.ExtensionContext
@@ -37,10 +40,13 @@ export function registerShowClassMembersCommand(
         return;
       }
 
-      const picked = await vscode.window.showQuickPick(result.items, {
+      const picked = await vscode.window.showQuickPick<ClassMemberQuickPickItem>(
+        result.items,
+        {
         placeHolder: `Members of ${result.className}`,
         matchOnDetail: true,
-      });
+        }
+      );
 
       if (!picked) {
         return;
@@ -62,4 +68,178 @@ export function registerShowClassMembersCommand(
   );
 
   context.subscriptions.push(disposable);
+
+  const nextDisposable = vscode.commands.registerCommand(
+    "extension.navigateToNextClassMember",
+    async () => {
+      await navigateClassMembers("next");
+    }
+  );
+
+  const prevDisposable = vscode.commands.registerCommand(
+    "extension.navigateToPreviousClassMember",
+    async () => {
+      await navigateClassMembers("previous");
+    }
+  );
+
+  context.subscriptions.push(nextDisposable, prevDisposable);
+}
+
+type NavigationDirection = "next" | "previous";
+
+async function navigateClassMembers(
+  direction: NavigationDirection
+): Promise<void> {
+  const editor = vscode.window.activeTextEditor;
+  if (!editor) {
+    return;
+  }
+
+  const doc = editor.document;
+  if (doc.languageId !== "csharp") {
+    return;
+  }
+
+  const position = editor.selection.active;
+  const result = await collectClassMembersAtPosition(doc, position);
+  if (!result || result.items.length === 0) {
+    return;
+  }
+
+  const candidates = result.items.filter((item) =>
+    isNavigableMemberKind(item.symbolKind)
+  );
+  if (candidates.length === 0) {
+    return;
+  }
+
+  candidates.sort(compareItems);
+
+  const currentIndex = findCurrentIndex(candidates, doc.uri, position);
+  let target: ClassMemberQuickPickItem | undefined;
+
+  if (direction === "next") {
+    if (currentIndex >= 0 && currentIndex < candidates.length - 1) {
+      target = candidates[currentIndex + 1];
+    } else if (currentIndex === -1) {
+      target = findFirstAfterPosition(candidates, doc.uri, position);
+    }
+  } else {
+    if (currentIndex > 0) {
+      target = candidates[currentIndex - 1];
+    } else if (currentIndex === -1) {
+      target = findLastBeforePosition(candidates, doc.uri, position);
+    }
+  }
+
+  if (!target && candidates.length > 0) {
+    target =
+      direction === "next" ? candidates[0] : candidates[candidates.length - 1];
+  }
+
+  if (!target) {
+    return;
+  }
+
+  const targetDoc = await vscode.workspace.openTextDocument(target.location.uri);
+  const targetEditor = await vscode.window.showTextDocument(targetDoc);
+  targetEditor.selection = new vscode.Selection(
+    target.location.range.start,
+    target.location.range.start
+  );
+  targetEditor.revealRange(
+    target.location.range,
+    vscode.TextEditorRevealType.InCenter
+  );
+}
+
+function isNavigableMemberKind(kind: vscode.SymbolKind): boolean {
+  return (
+    kind === vscode.SymbolKind.Method ||
+    kind === vscode.SymbolKind.Property ||
+    kind === vscode.SymbolKind.Field ||
+    kind === vscode.SymbolKind.Constructor
+  );
+}
+
+function compareItems(
+  a: ClassMemberQuickPickItem,
+  b: ClassMemberQuickPickItem
+): number {
+  const pathA = a.location.uri.toString();
+  const pathB = b.location.uri.toString();
+  if (pathA !== pathB) {
+    return pathA.localeCompare(pathB);
+  }
+
+  const posA = a.location.range.start;
+  const posB = b.location.range.start;
+  if (posA.line !== posB.line) {
+    return posA.line - posB.line;
+  }
+  return posA.character - posB.character;
+}
+
+function findCurrentIndex(
+  items: ClassMemberQuickPickItem[],
+  uri: vscode.Uri,
+  position: vscode.Position
+): number {
+  const uriKey = uri.toString();
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
+    if (item.location.uri.toString() !== uriKey) {
+      continue;
+    }
+    if (item.location.range.contains(position)) {
+      return i;
+    }
+  }
+  return -1;
+}
+
+function findFirstAfterPosition(
+  items: ClassMemberQuickPickItem[],
+  uri: vscode.Uri,
+  position: vscode.Position
+): ClassMemberQuickPickItem | undefined {
+  for (const item of items) {
+    if (compareItemToPosition(item, uri, position) > 0) {
+      return item;
+    }
+  }
+  return undefined;
+}
+
+function findLastBeforePosition(
+  items: ClassMemberQuickPickItem[],
+  uri: vscode.Uri,
+  position: vscode.Position
+): ClassMemberQuickPickItem | undefined {
+  for (let i = items.length - 1; i >= 0; i--) {
+    const item = items[i];
+    if (compareItemToPosition(item, uri, position) < 0) {
+      return item;
+    }
+  }
+  return undefined;
+}
+
+function compareItemToPosition(
+  item: ClassMemberQuickPickItem,
+  uri: vscode.Uri,
+  position: vscode.Position
+): number {
+  const itemKey = item.location.uri.toString();
+  const targetKey = uri.toString();
+  if (itemKey !== targetKey) {
+    return itemKey.localeCompare(targetKey);
+  }
+
+  const pos = item.location.range.start;
+  if (pos.line !== position.line) {
+    return pos.line - position.line;
+  }
+  return pos.character - position.character;
 }
