@@ -1,11 +1,11 @@
-public class TestClass
-{
-    public int Data { get; set; }
-    public bool IsValid {get; }
-}
+using System;
 
-public class TestClass<T> : TestClass
+namespace My.Test.Space.Data
 {
-    public T Value { get; set; }
+    public partial class TestClass
+    {
+        public string Name { get; set; }
+        public int Age { get; set; }
+        public DateTime BirthDate { get; set; }
+    }
 }
-

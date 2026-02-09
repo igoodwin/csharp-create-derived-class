@@ -130,6 +130,11 @@ The action will:
 - remove the members from the derived class and insert them before the closing brace of the base class
 - show the standard VS Code preview so you can review the diff before applying
 
+### 🔹 Show class members across partials
+
+Press **Alt+|** (Alt+Shift+\\) while your cursor is inside a class to open a quick list of all of its members.  
+Members from any partial declarations in other files are included, and picking an entry navigates to it.
+
 ---
 
 ## ▶ How to Use
