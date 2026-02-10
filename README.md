@@ -145,6 +145,7 @@ Each item shows the shortest file path (relative to the current file, or full pa
 
 Use **Ctrl+Alt+↑ / Ctrl+Alt+↓** to jump to the previous/next class member (methods, properties, fields, constructors), including members from other partial files.
 If the cursor is outside a class, navigation jumps to the nearest class in the chosen direction.
+Navigation can optionally loop when reaching the start/end of the file.
 
 ---
 
@@ -194,6 +195,7 @@ public class MyBase
 ## ⚙ Settings
 
 - `csharpCreateDerivedClass.navigateAcrossFiles` — Allow class member navigation across other files (e.g., partial classes).
+- `csharpCreateDerivedClass.wrapNavigation` — Loop class member navigation when reaching the start or end of the file.
 - `csharpCreateDerivedClass.enableLogging` — Enable logging to the extension output channel.
 
 ---
@@ -232,8 +234,12 @@ MIT
 ---
 
 # 📌 Changelog
-## 0.0.18 — Current release
-* Navigation now jumps to the nearest class when invoked outside a class
+## 0.0.19 — Current release
+* Navigation can loop at file boundaries (configurable)
+* Navigation jumps to the nearest class when invoked outside a class
+
+## 0.0.18
+* Navigation jumps to the nearest class when invoked outside a class
 
 ## 0.0.11
 * Command palette and keybindings for class member navigation

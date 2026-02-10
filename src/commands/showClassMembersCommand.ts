@@ -153,7 +153,7 @@ async function navigateClassMembers(
     }
   }
 
-  if (!target && candidates.length > 0) {
+  if (!target && candidates.length > 0 && isNavigationWrapEnabled()) {
     target =
       direction === "next" ? candidates[0] : candidates[candidates.length - 1];
   }
@@ -182,6 +182,14 @@ function isCrossFileNavigationEnabled(): boolean {
     vscode.workspace
       .getConfiguration("csharpCreateDerivedClass")
       .get<boolean>("navigateAcrossFiles", true) ?? true
+  );
+}
+
+function isNavigationWrapEnabled(): boolean {
+  return (
+    vscode.workspace
+      .getConfiguration("csharpCreateDerivedClass")
+      .get<boolean>("wrapNavigation", true) ?? true
   );
 }
 
@@ -293,11 +301,21 @@ async function navigateToNearestClassSymbol(
   classSymbols.sort(compareClassSymbols);
   const target =
     direction === "next"
-      ? findFirstClassAfterPosition(classSymbols, position) ?? classSymbols[0]
-      : findLastClassBeforePosition(classSymbols, position) ??
-        classSymbols[classSymbols.length - 1];
+      ? findFirstClassAfterPosition(classSymbols, position)
+      : findLastClassBeforePosition(classSymbols, position);
+  const resolvedTarget =
+    target ??
+    (isNavigationWrapEnabled()
+      ? direction === "next"
+        ? classSymbols[0]
+        : classSymbols[classSymbols.length - 1]
+      : undefined);
 
-  const location = new vscode.Location(doc.uri, target.selectionRange);
+  if (!resolvedTarget) {
+    return false;
+  }
+
+  const location = new vscode.Location(doc.uri, resolvedTarget.selectionRange);
   await revealLocation(location, editor);
   return true;
 }
