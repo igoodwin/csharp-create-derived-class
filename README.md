@@ -1,4 +1,4 @@
-# C# Create Derived Class
+# C# Class Tools
 
 Adds Code Actions for C# files:
 - create a derived class from a base class
@@ -234,7 +234,10 @@ MIT
 ---
 
 # 📌 Changelog
-## 0.0.19 — Current release
+## 0.0.20 — Current release
+* Renamed to C# Class Tools
+
+## 0.0.19
 * Navigation can loop at file boundaries (configurable)
 * Navigation jumps to the nearest class when invoked outside a class
 
