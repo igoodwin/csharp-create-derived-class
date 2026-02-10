@@ -10,5 +10,11 @@ export function getOutputChannel(): vscode.OutputChannel {
 }
 
 export function log(message: string): void {
+  const enabled = vscode.workspace
+    .getConfiguration("csharpCreateDerivedClass")
+    .get<boolean>("enableLogging", false);
+  if (!enabled) {
+    return;
+  }
   getOutputChannel().appendLine(message);
 }

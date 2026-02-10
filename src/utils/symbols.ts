@@ -9,7 +9,7 @@ interface DocumentSymbolCacheEntry {
 const documentSymbolCache = new Map<string, DocumentSymbolCacheEntry>();
 
 export async function getDocumentSymbols(
-  doc: vscode.TextDocument
+  doc: vscode.TextDocument,
 ): Promise<vscode.DocumentSymbol[]> {
   const key = doc.uri.toString();
   const cached = documentSymbolCache.get(key);
@@ -18,7 +18,7 @@ export async function getDocumentSymbols(
       return cached.symbols;
     }
     log(
-      `Cached symbols count is ${cached.symbols.length}, attempting refresh...`
+      `Cached symbols count is ${cached.symbols.length}, attempting refresh...`,
     );
   }
 
@@ -43,7 +43,7 @@ export async function getDocumentSymbols(
 export function collectSymbolsByKind(
   symbols: readonly vscode.DocumentSymbol[] | undefined,
   kind: vscode.SymbolKind,
-  result: vscode.DocumentSymbol[] = []
+  result: vscode.DocumentSymbol[] = [],
 ): vscode.DocumentSymbol[] {
   if (!symbols) {
     return result;
@@ -62,7 +62,7 @@ export function collectSymbolsByKind(
 export function findEnclosingSymbolByKind(
   symbols: readonly vscode.DocumentSymbol[] | undefined,
   pos: vscode.Position,
-  kinds: readonly vscode.SymbolKind[]
+  kinds: readonly vscode.SymbolKind[],
 ): vscode.DocumentSymbol | undefined {
   if (!symbols) {
     return undefined;

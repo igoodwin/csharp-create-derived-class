@@ -138,11 +138,13 @@ The action will:
 ### 🔹 Show class members across partials
 
 Press **Alt+|** (Alt+Shift+\\) while your cursor is inside a class to open a quick list of all of its members.  
-Members from any partial declarations in other files are included, and picking an entry navigates to it.
+Members from any partial declarations in other files are included, and picking an entry navigates to it.  
+Each item shows the shortest file path (relative to the current file, or full path if it is shorter).
 
 ### 🔹 Navigate between class members
 
 Use **Ctrl+Alt+↑ / Ctrl+Alt+↓** to jump to the previous/next class member (methods, properties, fields, constructors), including members from other partial files.
+If the cursor is outside a class, navigation jumps to the nearest class in the chosen direction.
 
 ---
 
@@ -189,6 +191,13 @@ public class MyBase
 
 ---
 
+## ⚙ Settings
+
+- `csharpCreateDerivedClass.navigateAcrossFiles` — Allow class member navigation across other files (e.g., partial classes).
+- `csharpCreateDerivedClass.enableLogging` — Enable logging to the extension output channel.
+
+---
+
 ## 🔧 Build and Debug
 
 ```bash
@@ -223,13 +232,17 @@ MIT
 ---
 
 # 📌 Changelog
-## 0.0.11 — Current release
+## 0.0.18 — Current release
+* Navigation now jumps to the nearest class when invoked outside a class
+
+## 0.0.11
 * Command palette and keybindings for class member navigation
 * Class member listing includes partial declarations
 * Interface extraction quick fixes (existing or new interface)
 * Move members to base class with dependency handling
 
-## 0.0.7 - Minor fixes
+## 0.0.7
+* Minor fixes
 * Added namespace support
 
 ## 0.0.6 — Interface suggestions & base moves

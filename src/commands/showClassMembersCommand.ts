@@ -3,6 +3,7 @@ import {
   ClassMemberQuickPickItem,
   collectClassMembersAtPosition,
 } from "../features/classMembers";
+import { collectSymbolsByKind, getDocumentSymbols } from "../utils/symbols";
 import { log } from "../utils/output";
 
 export function registerShowClassMembersCommand(
@@ -113,12 +114,21 @@ async function navigateClassMembers(
   const position = editor.selection.active;
   const result = await collectClassMembersAtPosition(doc, position);
   if (!result || result.items.length === 0) {
-    log("No class members found for navigation");
+    log("No class members found for navigation, attempting class navigation");
+    const moved = await navigateToNearestClassSymbol(
+      editor,
+      doc,
+      position,
+      direction
+    );
+    if (!moved) {
+      log("No class symbols found for navigation");
+    }
     return;
   }
 
-  const candidates = result.items.filter((item) =>
-    isNavigableMemberKind(item.symbolKind)
+  const candidates = filterItemsByNavigationScope(result.items, doc.uri).filter(
+    (item) => isNavigableMemberKind(item.symbolKind)
   );
   if (candidates.length === 0) {
     return;
@@ -152,15 +162,26 @@ async function navigateClassMembers(
     return;
   }
 
-  const targetDoc = await vscode.workspace.openTextDocument(target.location.uri);
-  const targetEditor = await vscode.window.showTextDocument(targetDoc);
-  targetEditor.selection = new vscode.Selection(
-    target.location.range.start,
-    target.location.range.start
-  );
-  targetEditor.revealRange(
-    target.location.range,
-    vscode.TextEditorRevealType.InCenter
+  await revealLocation(target.location);
+}
+
+function filterItemsByNavigationScope(
+  items: ClassMemberQuickPickItem[],
+  uri: vscode.Uri
+): ClassMemberQuickPickItem[] {
+  if (isCrossFileNavigationEnabled()) {
+    return items;
+  }
+
+  const uriKey = uri.toString();
+  return items.filter((item) => item.location.uri.toString() === uriKey);
+}
+
+function isCrossFileNavigationEnabled(): boolean {
+  return (
+    vscode.workspace
+      .getConfiguration("csharpCreateDerivedClass")
+      .get<boolean>("navigateAcrossFiles", true) ?? true
   );
 }
 
@@ -252,4 +273,98 @@ function compareItemToPosition(
     return pos.line - position.line;
   }
   return pos.character - position.character;
+}
+
+async function navigateToNearestClassSymbol(
+  editor: vscode.TextEditor,
+  doc: vscode.TextDocument,
+  position: vscode.Position,
+  direction: NavigationDirection
+): Promise<boolean> {
+  const symbols = await getDocumentSymbols(doc);
+  const classSymbols = collectSymbolsByKind(
+    symbols,
+    vscode.SymbolKind.Class
+  );
+  if (classSymbols.length === 0) {
+    return false;
+  }
+
+  classSymbols.sort(compareClassSymbols);
+  const target =
+    direction === "next"
+      ? findFirstClassAfterPosition(classSymbols, position) ?? classSymbols[0]
+      : findLastClassBeforePosition(classSymbols, position) ??
+        classSymbols[classSymbols.length - 1];
+
+  const location = new vscode.Location(doc.uri, target.selectionRange);
+  await revealLocation(location, editor);
+  return true;
+}
+
+function compareClassSymbols(
+  a: vscode.DocumentSymbol,
+  b: vscode.DocumentSymbol
+): number {
+  const posA = a.selectionRange.start;
+  const posB = b.selectionRange.start;
+  if (posA.line !== posB.line) {
+    return posA.line - posB.line;
+  }
+  return posA.character - posB.character;
+}
+
+function findFirstClassAfterPosition(
+  items: vscode.DocumentSymbol[],
+  position: vscode.Position
+): vscode.DocumentSymbol | undefined {
+  for (const item of items) {
+    if (compareClassToPosition(item, position) > 0) {
+      return item;
+    }
+  }
+  return undefined;
+}
+
+function findLastClassBeforePosition(
+  items: vscode.DocumentSymbol[],
+  position: vscode.Position
+): vscode.DocumentSymbol | undefined {
+  for (let i = items.length - 1; i >= 0; i--) {
+    const item = items[i];
+    if (compareClassToPosition(item, position) < 0) {
+      return item;
+    }
+  }
+  return undefined;
+}
+
+function compareClassToPosition(
+  item: vscode.DocumentSymbol,
+  position: vscode.Position
+): number {
+  const pos = item.selectionRange.start;
+  if (pos.line !== position.line) {
+    return pos.line - position.line;
+  }
+  return pos.character - position.character;
+}
+
+async function revealLocation(
+  location: vscode.Location,
+  editor?: vscode.TextEditor
+): Promise<void> {
+  const targetDoc = await vscode.workspace.openTextDocument(location.uri);
+  const targetEditor =
+    editor?.document.uri.toString() === location.uri.toString()
+      ? editor
+      : await vscode.window.showTextDocument(targetDoc);
+  targetEditor.selection = new vscode.Selection(
+    location.range.start,
+    location.range.start
+  );
+  targetEditor.revealRange(
+    location.range,
+    vscode.TextEditorRevealType.InCenter
+  );
 }

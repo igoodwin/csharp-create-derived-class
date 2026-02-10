@@ -3,6 +3,7 @@ import { registerCreateDerivedClassCommand } from "./commands/createDerivedClass
 import { registerInterfaceExtractionCommand } from "./commands/interfaceExtractionCommand";
 import { registerShowClassMembersCommand } from "./commands/showClassMembersCommand";
 import { CreateDerivedClassProvider } from "./providers/createDerivedClassProvider";
+import { startClassIndexing } from "./utils/classIndex";
 import { getOutputChannel, log } from "./utils/output";
 
 export function activate(context: vscode.ExtensionContext) {
@@ -28,6 +29,7 @@ export function activate(context: vscode.ExtensionContext) {
   registerCreateDerivedClassCommand(context);
   registerInterfaceExtractionCommand(context);
   registerShowClassMembersCommand(context);
+  startClassIndexing(context);
 
   context.subscriptions.push(output);
 }
