@@ -3,6 +3,7 @@ import {
   ClassMemberQuickPickItem,
   collectClassMembersAtPosition,
 } from "../features/classMembers";
+import { log } from "../utils/output";
 
 export function registerShowClassMembersCommand(
   context: vscode.ExtensionContext
@@ -10,8 +11,10 @@ export function registerShowClassMembersCommand(
   const disposable = vscode.commands.registerCommand(
     "extension.showClassMembers",
     async () => {
+      log("Command: showClassMembers");
       const editor = vscode.window.activeTextEditor;
       if (!editor) {
+        log("No active editor");
         vscode.window.showErrorMessage(
           "Open a C# file and place the cursor inside a class."
         );
@@ -19,6 +22,7 @@ export function registerShowClassMembersCommand(
       }
 
       const doc = editor.document;
+      log(`Doc: ${doc.uri.toString()} scheme=${doc.uri.scheme} lang=${doc.languageId}`);
       if (doc.languageId !== "csharp") {
         vscode.window.showErrorMessage(
           "Class members are only available for C# files."
@@ -29,11 +33,13 @@ export function registerShowClassMembersCommand(
       const position = editor.selection.active;
       const result = await collectClassMembersAtPosition(doc, position);
       if (!result) {
+        log("No class symbol found at cursor position");
         vscode.window.showErrorMessage("Place the cursor inside a class.");
         return;
       }
 
       if (result.items.length === 0) {
+        log(`No members found for ${result.className}`);
         vscode.window.showInformationMessage(
           `No members found for ${result.className}.`
         );
@@ -91,12 +97,15 @@ type NavigationDirection = "next" | "previous";
 async function navigateClassMembers(
   direction: NavigationDirection
 ): Promise<void> {
+  log(`Command: navigateClassMembers (${direction})`);
   const editor = vscode.window.activeTextEditor;
   if (!editor) {
+    log("No active editor");
     return;
   }
 
   const doc = editor.document;
+  log(`Doc: ${doc.uri.toString()} scheme=${doc.uri.scheme} lang=${doc.languageId}`);
   if (doc.languageId !== "csharp") {
     return;
   }
@@ -104,6 +113,7 @@ async function navigateClassMembers(
   const position = editor.selection.active;
   const result = await collectClassMembersAtPosition(doc, position);
   if (!result || result.items.length === 0) {
+    log("No class members found for navigation");
     return;
   }
 

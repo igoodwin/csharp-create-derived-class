@@ -3,10 +3,11 @@ import { registerCreateDerivedClassCommand } from "./commands/createDerivedClass
 import { registerInterfaceExtractionCommand } from "./commands/interfaceExtractionCommand";
 import { registerShowClassMembersCommand } from "./commands/showClassMembersCommand";
 import { CreateDerivedClassProvider } from "./providers/createDerivedClassProvider";
+import { getOutputChannel, log } from "./utils/output";
 
 export function activate(context: vscode.ExtensionContext) {
-  const output = vscode.window.createOutputChannel("C# Create Derived Class");
-  output.appendLine("Activating extension...");
+  const output = getOutputChannel();
+  log("Activating extension...");
 
   const provider: vscode.CodeActionProvider = new CreateDerivedClassProvider();
 

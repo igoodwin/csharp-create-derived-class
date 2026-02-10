@@ -4,6 +4,7 @@ import {
   findEnclosingSymbolByKind,
   getDocumentSymbols,
 } from "../utils/symbols";
+import { log } from "../utils/output";
 
 export interface ClassMemberQuickPickItem extends vscode.QuickPickItem {
   location: vscode.Location;
@@ -20,24 +21,35 @@ export async function collectClassMembersAtPosition(
   pos: vscode.Position
 ): Promise<ClassMembersResult | undefined> {
   const symbols = await getDocumentSymbols(doc);
+  log(`Document symbols: ${symbols.length}`);
   const classSymbol = findEnclosingSymbolByKind(symbols, pos, [
     vscode.SymbolKind.Class,
   ]);
 
   if (!classSymbol) {
+    log("No enclosing class symbol found");
     return undefined;
   }
 
   const className = normalizeClassName(classSymbol.name);
   const namespaceName = detectNamespace(doc);
+  log(
+    `Collecting members for ${className} namespace=${namespaceName ?? "<global>"}`
+  );
   const documents = await collectPartialDocuments(doc, className, namespaceName);
 
   const items: ClassMemberQuickPickItem[] = [];
   for (const partialDoc of documents) {
     const docSymbols = await getDocumentSymbols(partialDoc);
     const classSymbols = findClassSymbols(docSymbols, className);
+    log(
+      `Doc ${partialDoc.uri.toString()} classSymbols=${classSymbols.length}`
+    );
 
     for (const partialClass of classSymbols) {
+      log(
+        `Class ${partialClass.name} members=${partialClass.children.length}`
+      );
       for (const member of partialClass.children) {
         if (!isRelevantMember(member)) {
           continue;
@@ -49,6 +61,7 @@ export async function collectClassMembersAtPosition(
   }
 
   items.sort(compareItems);
+  log(`Collected members total=${items.length}`);
 
   return {
     className,
@@ -70,7 +83,7 @@ async function collectPartialDocuments(
       vscode.SymbolInformation[]
     >("vscode.executeWorkspaceSymbolProvider", className);
   } catch (err) {
-    console.warn("Failed to query workspace symbols", err);
+    log(`Failed to query workspace symbols: ${err}`);
   }
 
   if (!workspaceSymbols) {
@@ -104,7 +117,7 @@ async function collectPartialDocuments(
       }
       result.set(uriKey, doc);
     } catch (err) {
-      console.warn("Failed to open document for symbol", err);
+      log(`Failed to open document for symbol: ${err}`);
     }
   }
 
@@ -256,7 +269,7 @@ async function scanWorkspaceForClass(
       "{**/bin/**,**/obj/**,**/.git/**,**/node_modules/**}"
     );
   } catch (err) {
-    console.warn("Failed to scan workspace for partial classes", err);
+    log(`Failed to scan workspace for partial classes: ${err}`);
     return;
   }
 
@@ -288,7 +301,7 @@ async function scanWorkspaceForClass(
 
       result.set(key, doc);
     } catch (err) {
-      console.warn("Failed to inspect file for class members", err);
+      log(`Failed to inspect file for class members: ${err}`);
     }
   }
 }

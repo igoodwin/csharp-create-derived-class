@@ -1,4 +1,5 @@
 import * as vscode from "vscode";
+import { log } from "./output";
 
 interface DocumentSymbolCacheEntry {
   version: number;
@@ -13,7 +14,12 @@ export async function getDocumentSymbols(
   const key = doc.uri.toString();
   const cached = documentSymbolCache.get(key);
   if (cached && cached.version === doc.version) {
-    return cached.symbols;
+    if (cached.symbols.length > 1) {
+      return cached.symbols;
+    }
+    log(
+      `Cached symbols count is ${cached.symbols.length}, attempting refresh...`
+    );
   }
 
   try {
@@ -21,11 +27,13 @@ export async function getDocumentSymbols(
       vscode.DocumentSymbol[]
     >("vscode.executeDocumentSymbolProvider", doc.uri);
     if (symbols) {
+      log(`executeDocumentSymbolProvider returned ${symbols.length} symbols`);
       documentSymbolCache.set(key, { version: doc.version, symbols });
       return symbols;
     }
   } catch (err) {
-    console.warn("Failed to retrieve document symbols", err);
+    const message = err instanceof Error ? err.message : String(err);
+    log(`Failed to retrieve document symbols: ${message}`);
   }
 
   documentSymbolCache.delete(key);
