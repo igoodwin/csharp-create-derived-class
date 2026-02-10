@@ -5,11 +5,17 @@ import { registerShowClassMembersCommand } from "./commands/showClassMembersComm
 import { CreateDerivedClassProvider } from "./providers/createDerivedClassProvider";
 
 export function activate(context: vscode.ExtensionContext) {
+  const output = vscode.window.createOutputChannel("C# Create Derived Class");
+  output.appendLine("Activating extension...");
+
   const provider: vscode.CodeActionProvider = new CreateDerivedClassProvider();
 
   context.subscriptions.push(
     vscode.languages.registerCodeActionsProvider(
-      { language: "csharp", scheme: "file" },
+      [
+        { language: "csharp", scheme: "file" },
+        { language: "csharp", scheme: "vscode-remote" },
+      ],
       provider,
       {
         providedCodeActionKinds:
@@ -21,6 +27,8 @@ export function activate(context: vscode.ExtensionContext) {
   registerCreateDerivedClassCommand(context);
   registerInterfaceExtractionCommand(context);
   registerShowClassMembersCommand(context);
+
+  context.subscriptions.push(output);
 }
 
 export function deactivate() {
